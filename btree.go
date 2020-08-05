@@ -179,10 +179,11 @@ func (tr *BTree) Delete(key string) (deleted bool) {
 	if tr.root == nil {
 		return
 	}
-	deleted = tr.root.delete(false, key, tr.height)
+	_, deleted = tr.root.delete(false, key, tr.height)
 	if !deleted {
 		return
 	}
+
 	if tr.root.numItems == 0 {
 		tr.root = tr.root.children[0]
 		tr.height--
@@ -196,7 +197,7 @@ func (tr *BTree) Delete(key string) (deleted bool) {
 }
 
 func (n *node) delete(max bool, key string, height int) (
-	deleted bool,
+	prev item, deleted bool,
 ) {
 	i, found := 0, false
 	if max {
@@ -206,26 +207,29 @@ func (n *node) delete(max bool, key string, height int) (
 	}
 	if height == 0 {
 		if found {
+			prev = n.items[i]
 			// found the items at the leaf, remove it and return.
 			copy(n.items[i:], n.items[i+1:n.numItems])
 			n.items[n.numItems-1] = item{}
 			n.children[n.numItems] = nil
 			n.numItems--
-			return true
+			return prev, true
 		}
-		return false
+		return item{}, false
 	}
 
 	if found {
 		if max {
 			i++
-			deleted = n.children[i].delete(true, "", height-1)
+			prev, deleted = n.children[i].delete(true, "", height-1)
 		} else {
-			n.children[i].delete(true, "", height-1)
+			prev = n.items[i]
+			maxItem, _ := n.children[i].delete(true, "", height-1)
+			n.items[i] = maxItem
 			deleted = true
 		}
 	} else {
-		deleted = n.children[i].delete(max, key, height-1)
+		prev, deleted = n.children[i].delete(max, key, height-1)
 	}
 	if !deleted {
 		return
