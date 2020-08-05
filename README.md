@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/tidwall/tinybtree?status.svg)](https://godoc.org/github.com/tidwall/tinybtree)
 
-Just an itsy bitsy b-tree.
+Just an itsy bitsy b-tree on keys. Removed value for minimixe memory usage. So, now it's ordered set.
 
 ## Usage
 
