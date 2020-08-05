@@ -100,7 +100,7 @@ func stringsEquals(a, b []string) bool {
 func TestDescend(t *testing.T) {
 	var tr BTree
 	var count int
-	tr.Descend("1", func(key string, value interface{}) bool {
+	tr.Descend("1", func(key string) bool {
 		count++
 		return true
 	})
@@ -110,10 +110,10 @@ func TestDescend(t *testing.T) {
 	var keys []string
 	for i := 0; i < 1000; i += 10 {
 		keys = append(keys, fmt.Sprintf("%03d", i))
-		tr.Set(keys[len(keys)-1], nil)
+		tr.Set(keys[len(keys)-1])
 	}
 	var exp []string
-	tr.Reverse(func(key string, _ interface{}) bool {
+	tr.Reverse(func(key string) bool {
 		exp = append(exp, key)
 		return true
 	})
@@ -121,7 +121,7 @@ func TestDescend(t *testing.T) {
 		var key string
 		key = fmt.Sprintf("%03d", i)
 		var all []string
-		tr.Descend(key, func(key string, value interface{}) bool {
+		tr.Descend(key, func(key string) bool {
 			all = append(all, key)
 			return true
 		})
@@ -129,7 +129,7 @@ func TestDescend(t *testing.T) {
 			exp = exp[1:]
 		}
 		var count int
-		tr.Descend(key, func(key string, value interface{}) bool {
+		tr.Descend(key, func(key string) bool {
 			if count == (i+1)%maxItems {
 				return false
 			}
@@ -151,7 +151,7 @@ func TestDescend(t *testing.T) {
 func TestAscend(t *testing.T) {
 	var tr BTree
 	var count int
-	tr.Ascend("1", func(key string, value interface{}) bool {
+	tr.Ascend("1", func(key string) bool {
 		count++
 		return true
 	})
@@ -161,7 +161,7 @@ func TestAscend(t *testing.T) {
 	var keys []string
 	for i := 0; i < 1000; i += 10 {
 		keys = append(keys, fmt.Sprintf("%03d", i))
-		tr.Set(keys[len(keys)-1], nil)
+		tr.Set(keys[len(keys)-1])
 	}
 	exp := keys
 	for i := -1; i < 1000; i++ {
@@ -172,7 +172,7 @@ func TestAscend(t *testing.T) {
 			key = fmt.Sprintf("%03d", i)
 		}
 		var all []string
-		tr.Ascend(key, func(key string, value interface{}) bool {
+		tr.Ascend(key, func(key string) bool {
 			all = append(all, key)
 			return true
 		})
@@ -181,7 +181,7 @@ func TestAscend(t *testing.T) {
 			exp = exp[1:]
 		}
 		var count int
-		tr.Ascend(key, func(key string, value interface{}) bool {
+		tr.Ascend(key, func(key string) bool {
 			if count == (i+1)%maxItems {
 				return false
 			}
@@ -198,18 +198,15 @@ func TestAscend(t *testing.T) {
 }
 
 func TestBTree(t *testing.T) {
-	N := 10000
+	N := 10_000
 	var tr BTree
 	keys := randKeys(N)
 
 	// insert all items
 	for _, key := range keys {
-		value, replaced := tr.Set(key, key)
+		replaced := tr.Set(key)
 		if replaced {
 			t.Fatal("expected false")
-		}
-		if value != nil {
-			t.Fatal("expected nil")
 		}
 	}
 
@@ -220,27 +217,21 @@ func TestBTree(t *testing.T) {
 
 	// get each value
 	for _, key := range keys {
-		value, gotten := tr.Get(key)
+		gotten := tr.Get(key)
 		if !gotten {
 			t.Fatal("expected true")
-		}
-		if value == nil || value.(string) != key {
-			t.Fatalf("expected '%v', got '%v'", key, value)
 		}
 	}
 
 	// scan all items
 	var last string
 	all := make(map[string]interface{})
-	tr.Scan(func(key string, value interface{}) bool {
+	tr.Scan(func(key string) bool {
 		if key <= last {
 			t.Fatal("out of order")
 		}
-		if value.(string) != key {
-			t.Fatalf("mismatch")
-		}
 		last = key
-		all[key] = value
+		all[key] = key
 		return true
 	})
 	if len(all) != len(keys) {
@@ -250,15 +241,12 @@ func TestBTree(t *testing.T) {
 	// reverse all items
 	var prev string
 	all = make(map[string]interface{})
-	tr.Reverse(func(key string, value interface{}) bool {
+	tr.Reverse(func(key string) bool {
 		if prev != "" && key >= prev {
 			t.Fatal("out of order")
 		}
-		if value.(string) != key {
-			t.Fatalf("mismatch")
-		}
 		prev = key
-		all[key] = value
+		all[key] = prev
 		return true
 	})
 	if len(all) != len(keys) {
@@ -266,18 +254,15 @@ func TestBTree(t *testing.T) {
 	}
 
 	// try to get an invalid item
-	value, gotten := tr.Get("invalid")
+	gotten := tr.Get("invalid")
 	if gotten {
 		t.Fatal("expected false")
-	}
-	if value != nil {
-		t.Fatal("expected nil")
 	}
 
 	// scan and quit at various steps
 	for i := 0; i < 100; i++ {
 		var j int
-		tr.Scan(func(key string, value interface{}) bool {
+		tr.Scan(func(key string) bool {
 			if j == i {
 				return false
 			}
@@ -289,7 +274,7 @@ func TestBTree(t *testing.T) {
 	// reverse and quit at various steps
 	for i := 0; i < 100; i++ {
 		var j int
-		tr.Reverse(func(key string, value interface{}) bool {
+		tr.Reverse(func(key string) bool {
 			if j == i {
 				return false
 			}
@@ -300,12 +285,10 @@ func TestBTree(t *testing.T) {
 
 	// delete half the items
 	for _, key := range keys[:len(keys)/2] {
-		value, deleted := tr.Delete(key)
+		deleted := tr.Delete(key)
 		if !deleted {
+			tr.deepPrint()
 			t.Fatal("expected true")
-		}
-		if value == nil || value.(string) != key {
-			t.Fatalf("expected '%v', got '%v'", key, value)
 		}
 	}
 
@@ -316,23 +299,17 @@ func TestBTree(t *testing.T) {
 
 	// try delete half again
 	for _, key := range keys[:len(keys)/2] {
-		value, deleted := tr.Delete(key)
+		deleted := tr.Delete(key)
 		if deleted {
 			t.Fatal("expected false")
-		}
-		if value != nil {
-			t.Fatalf("expected nil")
 		}
 	}
 
 	// try delete half again
 	for _, key := range keys[:len(keys)/2] {
-		value, deleted := tr.Delete(key)
+		deleted := tr.Delete(key)
 		if deleted {
 			t.Fatal("expected false")
-		}
-		if value != nil {
-			t.Fatalf("expected nil")
 		}
 	}
 
@@ -344,15 +321,12 @@ func TestBTree(t *testing.T) {
 	// scan items
 	last = ""
 	all = make(map[string]interface{})
-	tr.Scan(func(key string, value interface{}) bool {
+	tr.Scan(func(key string) bool {
 		if key <= last {
 			t.Fatal("out of order")
 		}
-		if value.(string) != key {
-			t.Fatalf("mismatch")
-		}
 		last = key
-		all[key] = value
+		all[key] = last
 		return true
 	})
 	if len(all) != len(keys)/2 {
@@ -361,23 +335,17 @@ func TestBTree(t *testing.T) {
 
 	// replace second half
 	for _, key := range keys[len(keys)/2:] {
-		value, replaced := tr.Set(key, key)
+		replaced := tr.Set(key)
 		if !replaced {
 			t.Fatal("expected true")
-		}
-		if value == nil || value.(string) != key {
-			t.Fatalf("expected '%v', got '%v'", key, value)
 		}
 	}
 
 	// delete next half the items
 	for _, key := range keys[len(keys)/2:] {
-		value, deleted := tr.Delete(key)
+		deleted := tr.Delete(key)
 		if !deleted {
 			t.Fatal("expected true")
-		}
-		if value == nil || value.(string) != key {
-			t.Fatalf("expected '%v', got '%v'", key, value)
 		}
 	}
 
@@ -387,29 +355,23 @@ func TestBTree(t *testing.T) {
 	}
 
 	// do some stuff on an empty tree
-	value, gotten = tr.Get(keys[0])
+	gotten = tr.Get(keys[0])
 	if gotten {
 		t.Fatal("expected false")
 	}
-	if value != nil {
-		t.Fatal("expected nil")
-	}
-	tr.Scan(func(key string, value interface{}) bool {
+	tr.Scan(func(key string) bool {
 		t.Fatal("should not be reached")
 		return true
 	})
-	tr.Reverse(func(key string, value interface{}) bool {
+	tr.Reverse(func(key string) bool {
 		t.Fatal("should not be reached")
 		return true
 	})
 
 	var deleted bool
-	value, deleted = tr.Delete("invalid")
+	deleted = tr.Delete("invalid")
 	if deleted {
 		t.Fatal("expected false")
-	}
-	if value != nil {
-		t.Fatal("expected nil")
 	}
 }
 
@@ -419,7 +381,7 @@ func BenchmarkTidwallSequentialSet(b *testing.B) {
 	sort.Strings(keys)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tr.Set(keys[i], nil)
+		tr.Set(keys[i])
 	}
 }
 
@@ -428,7 +390,7 @@ func BenchmarkTidwallSequentialGet(b *testing.B) {
 	keys := randKeys(b.N)
 	sort.Strings(keys)
 	for i := 0; i < b.N; i++ {
-		tr.Set(keys[i], nil)
+		tr.Set(keys[i])
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -441,7 +403,7 @@ func BenchmarkTidwallRandomSet(b *testing.B) {
 	keys := randKeys(b.N)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tr.Set(keys[i], nil)
+		tr.Set(keys[i])
 	}
 }
 
@@ -449,7 +411,7 @@ func BenchmarkTidwallRandomGet(b *testing.B) {
 	var tr BTree
 	keys := randKeys(b.N)
 	for i := 0; i < b.N; i++ {
-		tr.Set(keys[i], nil)
+		tr.Set(keys[i])
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -510,7 +472,6 @@ func BenchmarkTidwallRandomGet(b *testing.B) {
 // }
 
 // func BenchmarkGoogleRandomGet(b *testing.B) {
-// 	tr := btree.New(32)
 // 	keys := randKeys(b.N)
 // 	gkeys := make([]*googleKind, len(keys))
 // 	for i := 0; i < b.N; i++ {
@@ -527,11 +488,11 @@ func BenchmarkTidwallRandomGet(b *testing.B) {
 
 func TestBTreeOne(t *testing.T) {
 	var tr BTree
-	tr.Set("1", "1")
+	tr.Set("1")
 	tr.Delete("1")
-	tr.Set("1", "1")
+	tr.Set("1")
 	tr.Delete("1")
-	tr.Set("1", "1")
+	tr.Set("1")
 	tr.Delete("1")
 }
 
@@ -540,19 +501,16 @@ func TestBTree256(t *testing.T) {
 	var n int
 	for j := 0; j < 2; j++ {
 		for _, i := range rand.Perm(256) {
-			tr.Set(fmt.Sprintf("%d", i), i)
+			tr.Set(fmt.Sprintf("%d", i))
 			n++
 			if tr.Len() != n {
 				t.Fatalf("expected 256, got %d", n)
 			}
 		}
 		for _, i := range rand.Perm(256) {
-			v, ok := tr.Get(fmt.Sprintf("%d", i))
+			ok := tr.Get(fmt.Sprintf("%d", i))
 			if !ok {
 				t.Fatal("expected true")
-			}
-			if v.(int) != i {
-				t.Fatalf("expected %d, got %d", i, v.(int))
 			}
 		}
 		for _, i := range rand.Perm(256) {
@@ -563,7 +521,7 @@ func TestBTree256(t *testing.T) {
 			}
 		}
 		for _, i := range rand.Perm(256) {
-			_, ok := tr.Get(fmt.Sprintf("%d", i))
+			ok := tr.Get(fmt.Sprintf("%d", i))
 			if ok {
 				t.Fatal("expected false")
 			}
@@ -616,27 +574,30 @@ func testBTreeRandom(t *testing.T, r *rand.Rand, keys []string, count *uint32) {
 	keys = keys[:rand.Intn(len(keys))]
 	shuffle(r, keys)
 	for i := 0; i < len(keys); i++ {
-		prev, ok := tr.Set(keys[i], keys[i])
-		if ok || prev != nil {
+		ok := tr.Set(keys[i])
+		if ok {
 			t.Fatalf("expected nil")
 		}
 	}
 	shuffle(r, keys)
 	for i := 0; i < len(keys); i++ {
-		prev, ok := tr.Get(keys[i])
-		if !ok || prev != keys[i] {
-			t.Fatalf("expected '%v', got '%v'", keys[i], prev)
+		ok := tr.Get(keys[i])
+		if !ok {
+			t.Fatalf("expected '%v', got '%v'", keys[i], "")
 		}
 	}
 	shuffle(r, keys)
 	for i := 0; i < len(keys); i++ {
-		prev, ok := tr.Delete(keys[i])
-		if !ok || prev != keys[i] {
-			t.Fatalf("expected '%v', got '%v'", keys[i], prev)
+		ok := tr.Delete(keys[i])
+		if !ok {
+			t.Fatalf("expected '%v', got '%v'", keys[i], "")
 		}
-		prev, ok = tr.Get(keys[i])
-		if ok || prev != nil {
-			t.Fatalf("expected nil")
+		ok = tr.Get(keys[i])
+		if ok {
+			//tr.deepPrint()
+			t.Fatalf("expected nil %d %d %d %s", len(keys), i, tr.Len(), keys[i])
+			tr.deepPrint()
+			panic("")
 		}
 	}
 	atomic.AddUint32(count, 1)
